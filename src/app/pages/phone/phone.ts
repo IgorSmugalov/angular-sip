@@ -6,6 +6,4 @@ import { Component } from '@angular/core';
   templateUrl: './phone.html',
   styleUrl: './phone.scss',
 })
-export class SipPhonePage {
-
-}
+export class SipPhonePage {}
