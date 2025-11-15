@@ -1,0 +1,46 @@
+@let session = selectedSession();
+@let phonesList = filteredPhones();
+
+<form (ngSubmit)="initCall()">
+  <mat-form-field class="ui-form-field">
+    <mat-label>Абонент</mat-label>
+    <input type="text" matInput [formControl]="addressee" [matAutocomplete]="autocomplete">
+    <mat-autocomplete autoActiveFirstOption #autocomplete="matAutocomplete">
+      @for (phone of phonesList; track phone) {
+        <mat-option class="test" [value]="phone">
+          <div class="phone-option">
+            {{ phone }}
+            <button mat-icon-button class="phone-delete-brn" (click)="$event.stopPropagation(); onDeletePhone(phone)">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        </mat-option>
+      }
+    </mat-autocomplete>
+  </mat-form-field>
+</form>
+
+<div class="controls">
+  @if (session) {
+    @let sessionConfirmed = session.isConfirmed$ | async;
+    @switch (session.direction) {
+
+      @case ('incoming') {
+        @if(session.isPristine$ | async) {
+          <button mat-flat-button class="accent" (click)="session.answer()">Принять</button>
+          <button mat-flat-button class="warn" (click)="session.finish()">Отклонить</button>
+        } @else {
+          <button mat-flat-button class="error" (click)="session.finish()">Завершить</button>
+        }
+        <button [disabled]="!sessionConfirmed" mat-flat-button class="warn" (click)="unselectSession()">Отложить</button>
+      }
+
+      @case ('outgoing') {
+        <button mat-flat-button class="error" (click)="session.finish()">Завершить</button>
+        <button [disabled]="!sessionConfirmed" mat-flat-button class="warn" (click)="unselectSession()">Отложить</button>
+      }
+    }
+  } @else {
+    <button mat-flat-button (click)="initCall()">Вызов</button>
+  }
+</div>

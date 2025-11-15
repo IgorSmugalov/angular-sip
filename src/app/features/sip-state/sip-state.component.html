@@ -1,0 +1,13 @@
+@let sipAgent = agent();
+
+@let sipState = state.value! | sipState;
+<div class="state" [ngClass]="sipState.color">
+  <mat-icon>{{ sipState.icon }}</mat-icon>
+  {{ sipState.label }}
+<!--  Agent ID: {{ sipAgent?.id }}-->
+</div>
+
+<div class="controls">
+  <button [disabled]="!sipAgent" mat-flat-button (click)="connect()">Подключиться</button>
+  <button [disabled]="!sipAgent" mat-flat-button class="warn" (click)="disconnect()">Отключиться</button>
+</div>

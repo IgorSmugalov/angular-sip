@@ -1,0 +1,9 @@
+@let appTheme = theme();
+
+<button matFab (click)="toggleTheme()">
+  @if (appTheme === 'dark') {
+    <mat-icon>light_mode</mat-icon>
+  } @else {
+    <mat-icon>dark_mode</mat-icon>
+  }
+</button>

@@ -1,0 +1,45 @@
+@let sipSessions = sessions();
+@let sipSelectedSession = selectedSession();
+
+<mat-list>
+  @for (session of sipSessions; track session.id; let last = $last) {
+    <mat-list-item>
+      <div class="item" [class.accent]="session.id === sipSelectedSession?.id">
+        <div class="item__is-selected">
+          @if (session.id === selectedSession()?.id) {
+            <mat-icon>check</mat-icon>
+          }
+        </div>
+        <div class="item__identity">{{ session.id }}</div>
+        <div class="item__controls">
+          @switch (session.direction) {
+
+            @case ('incoming') {
+              @if(session.isPristine$ | async) {
+                <button mat-flat-button class="accent" (click)="session.answer()">Принять</button>
+                <button mat-flat-button class="warn" (click)="session.finish()">Отклонить</button>
+              } @else {
+                <button mat-flat-button class="error" (click)="session.finish()">Завершить</button>
+              }
+            }
+
+            @case ('outgoing') {
+              <button mat-flat-button class="error" (click)="session.finish()">Завершить</button>
+            }
+          }
+
+          <button (click)="selectSession(session.id)" [disabled]="session.id === sipSelectedSession?.id" mat-flat-button>Переключиться</button>
+        </div>
+      </div>
+    </mat-list-item>
+    @if (!last) {
+      <mat-divider></mat-divider>
+    }
+  } @empty {
+    <mat-list-item class="list--empty">
+      <div class="item item--empty">
+        Список вызовов пуст
+      </div>
+    </mat-list-item>
+  }
+</mat-list>

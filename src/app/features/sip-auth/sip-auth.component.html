@@ -1,0 +1,40 @@
+@let sipAgent = agent();
+
+<form class="ui-form" [formGroup]="form" (ngSubmit)="onSubmit()">
+  <div class="ui-form-row">
+    <mat-form-field class="ui-form-field">
+      <mat-label>Логин</mat-label>
+      <input [formControl]="form.controls.login" matInput>
+      @if (form.controls.login.invalid) {
+        <mat-error>Поле обязательно</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field class="ui-form-field">
+      <mat-label>Пароль</mat-label>
+      <input [formControl]="form.controls.password" matInput>
+      @if (form.controls.login.invalid) {
+        <mat-error>Поле обязательно</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field class="ui-form-field">
+      <mat-label>Хост</mat-label>
+      <input [formControl]="form.controls.url" matInput placeholder="wss://example.com">
+      @if (form.controls.url.invalid) {
+        <mat-error>Поле обязательно</mat-error>
+      }
+    </mat-form-field>
+  </div>
+  <div class="controls">
+    <div class="controls__agent-data">
+      @if (sipAgent) {
+        ID: {{ sipAgent?.id }}
+      } @else {
+        SIP-агент не создан
+      }
+    </div>
+    <button type="submit" mat-flat-button>Сгенерировать агент</button>
+  </div>
+</form>
+

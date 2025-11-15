@@ -1,0 +1,17 @@
+:host {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.state {
+  display: flex;
+  align-items: center;
+  font-size: 1.3em;
+  gap: 6px;
+}
+
+.controls {
+  display: flex;
+  gap: 16px;
+}
