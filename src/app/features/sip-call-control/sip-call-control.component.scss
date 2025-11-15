@@ -1,0 +1,43 @@
+.item {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+
+  &--empty {
+    justify-content: center;
+  }
+}
+
+mat-form-field {
+  width: 100%;
+}
+
+.test {
+  & > span {
+    width: 100%;
+  }
+  span {
+    width: 100%;
+  }
+  .mdc-list-item__primary-text {
+    width: 100%;
+  }
+}
+
+::ng-deep mat-option {
+  .mdc-list-item__primary-text {
+    width: 100%;
+  }
+}
+
+.phone-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.controls {
+  display: flex;
+  gap: 16px;
+}

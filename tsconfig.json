@@ -20,6 +20,7 @@
       "@pages/*": ["src/app/pages/*"],
       "@features/*": ["src/app/features/*"],
       "@models/*": ["src/app/models/*"],
+      "@ui/*": ["src/app/ui/*"],
     }
   },
   "angularCompilerOptions": {

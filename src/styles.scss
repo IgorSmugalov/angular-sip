@@ -5,12 +5,14 @@
 // Learn more about theming and how to use it for your application's
 // custom components at https://material.angular.dev/guide/theming
 @use '@angular/material' as mat;
+@use './app/shared/ui/styles/index';
 
 html {
   @include mat.theme((
     color: (
       primary: mat.$azure-palette,
-      tertiary: mat.$blue-palette,
+      //secondary: mat.$azure-palette,
+      //tertiary: mat.$red-palette,
     ),
     typography: Roboto,
     density: 0,
@@ -18,22 +20,54 @@ html {
 }
 
 body {
-  // Default the application to a light color theme. This can be changed to
-  // `dark` to enable the dark color theme, or to `light dark` to defer to the
-  // user's system settings.
-  color-scheme: dark;
-
-  // Set a default background, font and text colors for the application using
-  // Angular Material's system-level CSS variables. Learn more about these
-  // variables at https://material.angular.dev/guide/system-variables
+  color-scheme: light;
   background-color: var(--mat-sys-surface);
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-medium);
 
-  // Reset the user agent margin.
   margin: 0;
+
+  &.dark-theme {
+    color-scheme: dark;
+  }
 }
 /* You can add global styles to this file, and also import other style files */
 
 html, body { height: 100%; }
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+
+
+.error {
+  @include mat.theme(
+      (
+        color: mat.$red-palette,
+      )
+  );
+
+  color: var(--mat-sys-primary);
+}
+
+.warn {
+  @include mat.theme(
+      (
+        color: mat.$orange-palette,
+      )
+  );
+
+  color: var(--mat-sys-primary);
+}
+
+.accent {
+  @include mat.theme(
+      (
+        color: mat.$chartreuse-palette,
+      )
+  );
+  color: var(--mat-sys-primary);
+}
+
+.theme-toggle {
+  position: absolute;
+  top: 13px;
+  right: 13px;
+}

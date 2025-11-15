@@ -1,0 +1,28 @@
+.item {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+
+  &__identity {
+
+  }
+
+  &__controls {
+    display: flex;
+    gap: 12px;
+  }
+
+  &--empty {
+    justify-content: center;
+  }
+}
+
+mat-list {
+  padding: 0;
+}
+
+mat-list-item {
+  padding-left: 0;
+  padding-right: 0;
+}
