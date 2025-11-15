@@ -1,10 +1,9 @@
 import { inject, Injectable } from '@angular/core';
+import { SIP_SESSION_CONFIG } from '@app/configs/tokens';
 import { SipAgentService } from '@models/sip-agent';
 import { SipSession } from '@models/sip-session/session';
 import { BehaviorSubject, merge, ReplaySubject } from 'rxjs';
 import { filter, pairwise, switchMap, tap } from 'rxjs/operators';
-
-const mediaConstraints = { audio: true, video: false };
 
 @Injectable({
   providedIn: 'root',
@@ -12,6 +11,7 @@ const mediaConstraints = { audio: true, video: false };
 })
 export class SipSessionsService {
   private _sipAgentService = inject(SipAgentService);
+  private _sipSessionConfig = inject(SIP_SESSION_CONFIG);
 
   public sessions$ = new BehaviorSubject(new Map<string, SipSession>());
   public selectedSession$ = new BehaviorSubject<SipSession | null>(null);
@@ -45,7 +45,7 @@ export class SipSessionsService {
 
           if (curr) {
             if (prev && curr.rtcSession.direction === 'incoming' && !curr.isConfirmed$.value) {
-              curr.rtcSession.answer({ mediaConstraints });
+              curr.rtcSession.answer(this._sipSessionConfig.answerConfig);
             }
             curr.isOnHold$.value && curr.rtcSession.unhold();
             curr.rtcSession.isMuted() && curr.rtcSession.unmute();
@@ -118,7 +118,7 @@ export class SipSessionsService {
     if (!agent) {
       return;
     }
-    agent.call(addressee, { mediaConstraints });
+    agent.call(addressee, this._sipSessionConfig.outgoingConfig);
   }
 
   public switchToSession(sessionId: string | null) {

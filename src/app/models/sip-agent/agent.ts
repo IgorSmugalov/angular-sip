@@ -39,19 +39,16 @@ export class SipAgent extends UA {
 
   public newSession$ = fromEvent(this, 'newRTCSession') as Observable<RTCSessionEvent>;
 
-  constructor(params: ISipAgentCredentials) {
-    const { url, sip_number, sip_password } = params;
+  constructor(credentials: ISipAgentCredentials, settings: Partial<UAConfiguration>) {
+    const { url, sip_number, sip_password } = credentials;
 
     const sockets = new JsSIP.WebSocketInterface(url);
 
     const uaConfig: UAConfiguration = {
+      ...settings,
       sockets,
       uri: sip_number,
       password: sip_password,
-      session_timers_refresh_method: 'invite',
-      register_expires: 60,
-      connection_recovery_min_interval: 15,
-      connection_recovery_max_interval: 15,
     };
     super(uaConfig);
 

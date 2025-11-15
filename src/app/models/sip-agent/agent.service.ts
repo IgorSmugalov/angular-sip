@@ -1,5 +1,6 @@
 import { inject, Injectable, OnDestroy } from '@angular/core';
 import { FormControl } from '@angular/forms';
+import { SIP_AGENT_CONFIG } from '@app/configs/tokens';
 import {
   TSipAgentConnectionState,
   TSipAgentRegistrationState,
@@ -22,8 +23,8 @@ import { SipAgent } from './agent';
   providedIn: 'root',
 })
 export class SipAgentService implements OnDestroy {
-  private _crmJsSipAccount = inject(SIP_CREDENTIALS);
-  private _crmJsSipSettings = new BehaviorSubject({});
+  private _sipAccount = inject(SIP_CREDENTIALS);
+  private _sipAgentSettings = inject(SIP_AGENT_CONFIG);
 
   public state = new FormControl<TSipState>(SIP_STATE_OFFLINE);
   public stateChanging$ = new BehaviorSubject<boolean>(false);
@@ -46,11 +47,11 @@ export class SipAgentService implements OnDestroy {
       .subscribe();
 
     // При получении новых параметров генерирует новые UserAgent'ы
-    combineLatest([this._crmJsSipSettings, this._crmJsSipAccount])
+    combineLatest([this._sipAgentSettings, this._sipAccount])
       .pipe(
         filter(([, accounts]) => !!accounts),
         map(([settings, account]) => {
-          return new SipAgent(account!);
+          return new SipAgent(account!, settings);
         }),
         tap((agent) => {
           this.agent$.next(agent);
