@@ -38,17 +38,22 @@ export class SipSessionsService {
       .pipe(
         pairwise(),
         tap(([prev, curr]) => {
-          if (prev?.isConfirmed$.value) {
-            prev.rtcSession.mute();
+          // Приостанавливаем предыдущий звонок
+          if (prev && !prev.isOnHold$.value) {
+            prev.hold();
           }
-          prev?.rtcSession?.hold();
 
+          // Активируем текущий звонок
           if (curr) {
-            if (prev && curr.rtcSession.direction === 'incoming' && !curr.isConfirmed$.value) {
-              curr.rtcSession.answer(this._sipSessionConfig.answerConfig);
+            // if (prev && curr.rtcSession.direction === 'incoming' && !curr.isConfirmed$.value) {
+            //   // Если это было переключение с другого звонка - сразу отвечаем
+            //   curr.answer(this._sipSessionConfig.answerConfig);
+            // }
+
+            // Снимаем с удержания если нужно
+            if (curr.isOnHold$.value) {
+              curr.unHold();
             }
-            curr.isOnHold$.value && curr.rtcSession.unhold();
-            curr.rtcSession.isMuted() && curr.rtcSession.unmute();
           }
         }),
       )
@@ -65,13 +70,15 @@ export class SipSessionsService {
           const { session } = event;
           const sipSession = new SipSession(callId, session);
 
-          const isSessionIsExists = this._getSessionByPhone(sipSession);
-          if (isSessionIsExists) {
-            sipSession.finish();
-          } else {
-            this._addSession(sipSession);
+          const existingSession = this._getSessionByRemoteIdentity(sipSession.remoteIdentity);
+          if (existingSession) {
+            sipSession.finish(); // Завершаем дубликат
+            return;
           }
 
+          this._addSession(sipSession);
+
+          // Автовыбор если нет активной сессий
           if (!this.selectedSession$.value) {
             this.selectedSession$.next(sipSession);
           }
@@ -99,12 +106,10 @@ export class SipSessionsService {
     }
   }
 
-  private _getSessionByPhone(session: Pick<SipSession, 'remoteIdentity'>) {
+  private _getSessionByRemoteIdentity(remoteIdentity: string) {
     const sessions = this.sessions$.value;
 
-    return [...sessions.values()].find(
-      (_session) => _session.remoteIdentity === session.remoteIdentity,
-    );
+    return [...sessions.values()].find((session) => session.remoteIdentity === remoteIdentity);
   }
 
   private _clearSessions() {
@@ -113,7 +118,7 @@ export class SipSessionsService {
     this.sessions$.next(sessions);
   }
 
-  public initCall(addressee: string) {
+  public call(addressee: string) {
     const agent = this._sipAgentService.agent$.value;
     if (!agent) {
       return;
@@ -121,10 +126,18 @@ export class SipSessionsService {
     agent.call(addressee, this._sipSessionConfig.outgoingConfig);
   }
 
+  public answer(sessionId: string) {
+    const session = this.switchToSession(sessionId);
+
+    session?.answer(this._sipSessionConfig.answerConfig);
+  }
+
   public switchToSession(sessionId: string | null) {
     const sessions = this.sessions$.value;
+    const session = sessionId ? (sessions.get(sessionId) ?? null) : null;
+    this.selectedSession$.next(session);
 
-    this.selectedSession$.next(sessionId ? (sessions.get(sessionId) ?? null) : null);
+    return session;
   }
 
   private _getSessionById(sessionId: string): SipSession | null {

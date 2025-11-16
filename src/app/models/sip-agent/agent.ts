@@ -4,30 +4,21 @@ import {
   SIP_AGENT_CONNECTION_STATE_CONNECTED,
   SIP_AGENT_CONNECTION_STATE_DISCONNECTED,
   SIP_AGENT_REGISTRATION_STATE_FAILED,
-} from '@models/sip-agent/constants';
+} from './constants';
 import {
   ISipAgentCredentials,
   TSipAgentConnectionState,
   TSipAgentRegistrationState,
-} from '@models/sip-agent/types';
-import { RTCSessionEvent, UAConfiguration } from 'jssip/lib/UA';
+} from './types';
+import { CallOptions, RTCSessionEvent, UAConfiguration } from 'jssip/lib/UA';
 import { nanoid } from 'nanoid';
-import {
-  BehaviorSubject,
-  filter,
-  fromEvent,
-  map,
-  merge,
-  Observable,
-  Subject,
-  takeUntil,
-  tap,
-} from 'rxjs';
+import { BehaviorSubject, fromEvent, map, merge, Observable, Subject, takeUntil, tap } from 'rxjs';
 import JsSIP, { UA } from 'jssip';
 
-export class SipAgent extends UA {
+export class SipAgent {
   private readonly _destroy$ = new Subject<void>();
-  public readonly id = nanoid(7);
+  public readonly id = nanoid();
+  public userAgent: UA | null = null;
 
   public readonly connectionState$ = new BehaviorSubject<TSipAgentConnectionState>(
     SIP_AGENT_CONNECTION_STATE_DISCONNECTED,
@@ -37,58 +28,94 @@ export class SipAgent extends UA {
   );
   public readonly user: string;
 
-  public newSession$ = fromEvent(this, 'newRTCSession') as Observable<RTCSessionEvent>;
+  public newSession$ = new Subject<RTCSessionEvent>();
 
   constructor(credentials: ISipAgentCredentials, settings: Partial<UAConfiguration>) {
-    const { url, sip_number, sip_password } = credentials;
+    try {
+      const { url, sip_number, sip_password } = credentials;
 
-    const sockets = new JsSIP.WebSocketInterface(url);
+      const sockets = new JsSIP.WebSocketInterface(url);
+      const uaConfig: UAConfiguration = {
+        ...settings,
+        sockets,
+        uri: sip_number,
+        password: sip_password,
+      };
 
-    const uaConfig: UAConfiguration = {
-      ...settings,
-      sockets,
-      uri: sip_number,
-      password: sip_password,
-    };
-    super(uaConfig);
+      this.user = sip_number;
+      this.userAgent = new UA(uaConfig);
 
-    this.user = sip_number;
+      this.setupEventListeners();
+    } catch (error) {
+      this.destroy();
+      throw new Error(`Ошибка создания UserAgent`);
+    }
+  }
 
-    const stateChange$ = merge(
-      fromEvent(this, 'connected').pipe(map(() => SIP_AGENT_CONNECTION_STATE_CONNECTED)),
-      fromEvent(this, 'disconnected').pipe(map(() => SIP_AGENT_CONNECTION_STATE_DISCONNECTED)),
+  private setupEventListeners(): void {
+    if (!this.userAgent) return;
+
+    // New session events
+    const newSession$ = fromEvent(this.userAgent, 'newRTCSession') as Observable<RTCSessionEvent>;
+    newSession$.pipe(takeUntil(this._destroy$)).subscribe((session) => {
+      this.newSession$.next(session);
+    });
+
+    // Connection state events
+    const connectionState$ = merge(
+      fromEvent(this.userAgent, 'connected').pipe(map(() => SIP_AGENT_CONNECTION_STATE_CONNECTED)),
+      fromEvent(this.userAgent, 'disconnected').pipe(
+        map(() => SIP_AGENT_CONNECTION_STATE_DISCONNECTED),
+      ),
     );
 
-    stateChange$
+    connectionState$
       .pipe(
         takeUntil(this._destroy$),
-        tap((state) => {
-          this.connectionState$.next(state);
-        }),
+        tap((state) => this.connectionState$.next(state)),
       )
       .subscribe();
 
-    merge(
-      fromEvent(this, 'unregistered').pipe(map(() => SIP_AGENT_REGISTRATION_STATE_UNREGISTERED)),
-      fromEvent(this, 'registered').pipe(map(() => SIP_AGENT_REGISTRATION_STATE_REGISTERED)),
-      fromEvent(this, 'registrationFailed').pipe(map(() => SIP_AGENT_REGISTRATION_STATE_FAILED)),
-    )
+    // Registration state events
+    const registrationState$ = merge(
+      fromEvent(this.userAgent, 'unregistered').pipe(
+        map(() => SIP_AGENT_REGISTRATION_STATE_UNREGISTERED),
+      ),
+      fromEvent(this.userAgent, 'registered').pipe(
+        map(() => SIP_AGENT_REGISTRATION_STATE_REGISTERED),
+      ),
+      fromEvent(this.userAgent, 'registrationFailed').pipe(
+        map(() => SIP_AGENT_REGISTRATION_STATE_FAILED),
+      ),
+    );
+
+    registrationState$
       .pipe(
         takeUntil(this._destroy$),
-        tap((state) => {
-          this.registrationState$.next(state);
-        }),
+        tap((state) => this.registrationState$.next(state)),
       )
       .subscribe();
   }
 
-  public destroy() {
-    super.stop();
+  public destroy(): void {
     this._destroy$.next();
     this._destroy$.complete();
+    this.newSession$.complete();
+
+    if (this.userAgent) {
+      this.userAgent.stop();
+      this.userAgent = null;
+    }
   }
 
   get isReady(): boolean {
-    return this.isRegistered() && this.isConnected();
+    return this.userAgent ? this.userAgent.isRegistered() && this.userAgent.isConnected() : false;
+  }
+
+  public call(target: string, options?: CallOptions): void {
+    if (!this.userAgent) {
+      throw new Error('UserAgent не создан');
+    }
+    this.userAgent.call(target, options);
   }
 }

@@ -38,10 +38,10 @@ export class SipCallControlComponent {
 
   public addressee = new FormControl<string>('', [Validators.required]);
 
-  private _sipSessionsService = inject(SipSessionsService);
+  public sipSessionsService = inject(SipSessionsService);
 
-  public selectedSession = toSignal(this._sipSessionsService.selectedSession$);
-  private _selectedSession$ = this._sipSessionsService.selectedSession$;
+  public selectedSession = toSignal(this.sipSessionsService.selectedSession$);
+  private _selectedSession$ = this.sipSessionsService.selectedSession$;
 
   public phones = signal<string[]>([]);
   private _phones$ = toObservable(this.phones);
@@ -81,7 +81,7 @@ export class SipCallControlComponent {
 
   @FormGuard('addressee')
   public initCall(): void {
-    this._sipSessionsService.initCall(this.addressee.value!);
+    this.sipSessionsService.call(this.addressee.value!);
   }
 
   public onDeletePhone(phone: string) {
@@ -91,6 +91,6 @@ export class SipCallControlComponent {
   }
 
   public unselectSession(): void {
-    this._sipSessionsService.switchToSession(null);
+    this.sipSessionsService.switchToSession(null);
   }
 }
