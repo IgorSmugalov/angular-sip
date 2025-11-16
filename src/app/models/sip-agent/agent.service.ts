@@ -1,5 +1,6 @@
 import { inject, Injectable, OnDestroy } from '@angular/core';
 import { FormControl } from '@angular/forms';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { SIP_AGENT_CONFIG } from '@app/configs/tokens';
 import {
   TSipAgentConnectionState,
@@ -14,8 +15,18 @@ import {
   SIP_STATE_OFFLINE,
   SIP_STATE_ONLINE,
 } from './constants';
-import { BehaviorSubject, combineLatest, of, take, timeout } from 'rxjs';
-import { filter, map, pairwise, startWith, switchMap, tap } from 'rxjs/operators';
+import { BehaviorSubject, combineLatest, EMPTY, of } from 'rxjs';
+import {
+  catchError,
+  filter,
+  map,
+  pairwise,
+  startWith,
+  switchMap,
+  take,
+  tap,
+  timeout,
+} from 'rxjs/operators';
 import { SIP_CREDENTIALS } from './tokens';
 import { SipAgent } from './agent';
 
@@ -25,6 +36,7 @@ import { SipAgent } from './agent';
 export class SipAgentService implements OnDestroy {
   private _sipAccount = inject(SIP_CREDENTIALS);
   private _sipAgentSettings = inject(SIP_AGENT_CONFIG);
+  private _snackBar = inject(MatSnackBar);
 
   public state = new FormControl<TSipState>(SIP_STATE_OFFLINE);
   public stateChanging$ = new BehaviorSubject<boolean>(false);
@@ -32,17 +44,15 @@ export class SipAgentService implements OnDestroy {
   public agent$ = new BehaviorSubject<SipAgent | null>(null);
 
   constructor() {
-    this.agent$.pipe().subscribe((value) => {
-      console.log(value?.id);
-    });
     // При создании новых UserAgent отменяет регистрацию и отключается от старых
     this.agent$
       .pipe(
-        tap(() => this.state.setValue(SIP_STATE_OFFLINE)),
         pairwise(),
-        filter(([existingAgent]) => !!existingAgent),
-        map(([existingAgent]) => existingAgent),
-        tap((existingAgent) => existingAgent!.destroy()),
+        filter(([prevAgent]) => !!prevAgent),
+        tap(([prevAgent]) => {
+          this.state.setValue(SIP_STATE_OFFLINE);
+          prevAgent!.destroy();
+        }),
       )
       .subscribe();
 
@@ -51,8 +61,18 @@ export class SipAgentService implements OnDestroy {
       .pipe(
         filter(([, accounts]) => !!accounts),
         map(([settings, account]) => {
-          return new SipAgent(account!, settings);
+          try {
+            return new SipAgent(account!, settings);
+          } catch (error) {
+            this._snackBar.open(
+              'Ошибка при создании агента, проверьте корректность указанных данных',
+              'Ok',
+              { duration: 3000, horizontalPosition: 'center', verticalPosition: 'top' },
+            );
+            return null;
+          }
         }),
+        filter((agent) => agent !== null),
         tap((agent) => {
           this.agent$.next(agent);
         }),
@@ -75,7 +95,13 @@ export class SipAgentService implements OnDestroy {
           return combineLatest([agent!.connectionState$, agent!.registrationState$]).pipe(
             map((states) => mapState(...states)),
             filter((state) => state === targetState),
-            timeout({ first: 15_000, with: () => of(SIP_STATE_ERROR) }),
+            timeout({
+              first: 15_000,
+              with: () => {
+                this._snackBar.open('Таймаут изменения состояния', 'Ok', { duration: 3000 });
+                return of(SIP_STATE_ERROR);
+              },
+            }),
             take(1),
           );
         }),
@@ -114,7 +140,7 @@ export class SipAgentService implements OnDestroy {
     if (!agent) {
       return;
     }
-    agent.start();
+    agent.userAgent!.start();
   }
 
   public stop() {
@@ -122,28 +148,15 @@ export class SipAgentService implements OnDestroy {
     if (!agent) {
       return;
     }
-    agent.stop();
+    agent.userAgent!.stop();
   }
-
-  // public registerAll() {
-  //   const agents = this.agent$.value;
-  //   for (const agent of agents) {
-  //     agent.register();
-  //   }
-  // }
-  //
-  // public unregisterAll() {
-  //   const agents = this.agent$.value;
-  //   for (const agent of agents) {
-  //     agent.unregister();
-  //   }
-  // }
 
   public init() {
     // Noop.
   }
 
   public ngOnDestroy(): void {
+    this.agent$.value?.destroy();
     this.agent$.next(null);
   }
 }

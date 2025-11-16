@@ -1,4 +1,6 @@
 import { RTCPeerConnectionDeprecated, RTCSession } from 'jssip/lib/RTCSession';
+import { CallOptions } from 'jssip/lib/UA';
+import { nanoid } from 'nanoid';
 import {
   BehaviorSubject,
   EMPTY,
@@ -10,6 +12,10 @@ import {
   takeUntil,
 } from 'rxjs';
 import { filter, tap } from 'rxjs/operators';
+
+interface PeerConnectionEvent {
+  peerconnection: RTCPeerConnectionDeprecated;
+}
 
 export class SipSession {
   public readonly rtcSession: RTCSession;
@@ -28,23 +34,32 @@ export class SipSession {
   public connection$ = new BehaviorSubject<RTCPeerConnectionDeprecated | null>(null);
 
   constructor(id: string, session: RTCSession) {
-    if (session.connection) {
-      this.connection$.next(session.connection);
-    } else {
-      session.on('peerconnection', (event) => {
-        this.connection$.next(event.peerconnection);
-      });
-    }
-
     this.id = id;
-    this.remoteIdentity = session.remote_identity?.uri?.user;
+    this.remoteIdentity = session.remote_identity?.uri?.user || 'unknown_' + nanoid(5);
     this.direction = session.direction;
     this.rtcSession = session;
 
+    this._setupConnection();
     this._initListeners();
   }
 
-  public _initListeners() {
+  private _setupConnection(): void {
+    if (this.rtcSession.connection) {
+      this.connection$.next(this.rtcSession.connection);
+    } else {
+      const peerConnectionHandler = (event: PeerConnectionEvent) => {
+        this.connection$.next(event.peerconnection);
+      };
+
+      this.rtcSession.on('peerconnection', peerConnectionHandler);
+
+      this.destroy$.pipe(take(1)).subscribe(() => {
+        this.rtcSession.off('peerconnection', peerConnectionHandler);
+      });
+    }
+  }
+
+  public _initListeners(): void {
     const confirmed$ = fromEvent(this.rtcSession, 'confirmed');
     const hold$ = fromEvent(this.rtcSession, 'hold');
     const unhold$ = fromEvent(this.rtcSession, 'unhold');
@@ -80,61 +95,91 @@ export class SipSession {
       this.destroy();
     });
 
-    // Voice
+    // Голосовая связь
+    this._setupTrackHandling();
+  }
 
-    const track$ = this.connection$.pipe(
-      filter(Boolean),
-      switchMap((connection) => fromEvent<RTCTrackEvent>(connection, 'track')),
-      filter((event) => event.track.kind === 'audio'),
-      filter((event) => Boolean(event.streams[0])),
-      takeUntil(this._destroy$),
-    );
-
-    track$
+  private _setupTrackHandling(): void {
+    this.connection$
       .pipe(
+        filter(Boolean),
+        switchMap((connection) => fromEvent<RTCTrackEvent>(connection, 'track')),
+        filter((event) => event.track.kind === 'audio'),
+        filter((event) => Boolean(event.streams?.[0])),
         switchMap((event) => {
           const { track, streams } = event;
-          this.remoteTrack$.next(new MediaStream([track]));
-
           const stream = streams[0];
+
+          // Создаем новый поток с треком
+          const mediaStream = new MediaStream([track]);
+          this.remoteTrack$.next(mediaStream);
+
           if (!stream) {
-            console.warn('Stream не получен');
+            console.warn('Поток не получен');
             return EMPTY;
           }
 
+          // Слушаем удаление этого трека
           return fromEvent<MediaStreamTrackEvent>(stream, 'removetrack').pipe(
+            filter((removeEvent) => removeEvent.track === track),
             take(1),
-            tap(() => this.remoteTrack$.next(null)),
+            tap(() => {
+              this.remoteTrack$.next(null);
+            }),
           );
         }),
         takeUntil(this._destroy$),
       )
       .subscribe();
-
-    this._destroy$.pipe(take(1)).subscribe(() => {
-      this.remoteTrack$.next(null);
-    });
   }
 
-  // Control
+  // Методы управления
   public mute(): void {
-    this.rtcSession.mute();
+    try {
+      this.rtcSession.mute();
+    } catch (error) {
+      console.error('Ошибка при отключении звука:', error);
+    }
   }
 
   public unMute(): void {
-    this.rtcSession.unmute();
+    try {
+      this.rtcSession.unmute();
+    } catch (error) {
+      console.error('Ошибка при включении звука:', error);
+    }
   }
 
   public hold(): void {
-    this.rtcSession.hold();
+    if (!this.isConfirmed$.value) {
+      console.warn('Невозможно поставить на удержание неподтвержденную сессию');
+      return;
+    }
+    try {
+      this.rtcSession.hold();
+    } catch (error) {
+      console.error('Ошибка при постановке на удержание:', error);
+    }
   }
 
   public unHold(): void {
-    this.rtcSession.unhold();
+    if (!this.isConfirmed$.value) {
+      console.warn('Невозможно снять с удержания неподтвержденную сессию');
+      return;
+    }
+    try {
+      this.rtcSession.unhold();
+    } catch (error) {
+      console.error('Ошибка при снятии с удержания:', error);
+    }
   }
 
-  public answer(): void {
-    this.rtcSession.answer({ mediaConstraints: { audio: true, video: false } });
+  public answer(config?: Partial<CallOptions>): void {
+    try {
+      this.rtcSession.answer(config);
+    } catch (error) {
+      console.error('Ошибка при ответе на вызов:', error);
+    }
   }
 
   // Для корректного прерывания звонка в terminate необходимо передавать status_code:
@@ -142,10 +187,29 @@ export class SipSession {
   // - 487 - Request has terminated by bye or cancel
   // - 603 - Decline by Callee
   public finish(code: number = 487): void {
-    this.rtcSession.terminate({ status_code: code });
+    try {
+      this.rtcSession.terminate({ status_code: code });
+    } catch (error) {
+      // Все равно уничтожаем сессию даже при ошибке
+      this.destroy();
+    }
   }
 
   public destroy(): void {
+    // Останавливаем все медиа-треки
+    const currentTrack = this.remoteTrack$.value;
+    if (currentTrack) {
+      currentTrack.getTracks().forEach((track) => track.stop());
+    }
+
+    this.remoteTrack$.next(null);
+
+    this.remoteTrack$.complete();
+    this.isConfirmed$.complete();
+    this.isOnHold$.complete();
+    this.isMuted$.complete();
+    this.isPristine$.complete();
+    this.connection$.complete();
     this.remoteTrack$.next(null);
     this._destroy$.next(this.id);
     this._destroy$.complete();

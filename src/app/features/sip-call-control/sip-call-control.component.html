@@ -26,13 +26,13 @@
     @switch (session.direction) {
 
       @case ('incoming') {
-        @if(session.isPristine$ | async) {
+        @if(!sessionConfirmed) {
           <button mat-flat-button class="accent" (click)="session.answer()">Принять</button>
           <button mat-flat-button class="warn" (click)="session.finish()">Отклонить</button>
         } @else {
           <button mat-flat-button class="error" (click)="session.finish()">Завершить</button>
         }
-        <button [disabled]="!sessionConfirmed" mat-flat-button class="warn" (click)="unselectSession()">Отложить</button>
+        <button mat-flat-button class="warn" (click)="unselectSession()">Отложить</button>
       }
 
       @case ('outgoing') {

@@ -14,13 +14,13 @@ import { BehaviorSubject, map, Subject } from 'rxjs';
   styleUrl: './sip-calls-list.component.scss',
 })
 export class SipCallsListComponent {
-  private _sipSessionsService = inject(SipSessionsService);
+  public sipSessionsService = inject(SipSessionsService);
   public sessions = toSignal(
-    this._sipSessionsService.sessions$.pipe(map((sessions) => [...sessions.values()])),
+    this.sipSessionsService.sessions$.pipe(map((sessions) => [...sessions.values()])),
   );
-  public selectedSession = toSignal(this._sipSessionsService.selectedSession$);
+  public selectedSession = toSignal(this.sipSessionsService.selectedSession$);
 
   public selectSession(id: string) {
-    this._sipSessionsService.switchToSession(id);
+    this.sipSessionsService.switchToSession(id);
   }
 }

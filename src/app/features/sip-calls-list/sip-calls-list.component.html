@@ -1,5 +1,6 @@
 @let sipSessions = sessions();
 @let sipSelectedSession = selectedSession();
+@let sessionsService = sipSessionsService;
 
 <mat-list>
   @for (session of sipSessions; track session.id; let last = $last) {
@@ -10,13 +11,13 @@
             <mat-icon>check</mat-icon>
           }
         </div>
-        <div class="item__identity">{{ session.id }}</div>
+        <div class="item__identity">{{ session.remoteIdentity }}</div>
         <div class="item__controls">
           @switch (session.direction) {
 
             @case ('incoming') {
               @if(session.isPristine$ | async) {
-                <button mat-flat-button class="accent" (click)="session.answer()">Принять</button>
+                <button mat-flat-button class="accent" (click)="sessionsService.switchToSession(session.id); session.answer()">Принять</button>
                 <button mat-flat-button class="warn" (click)="session.finish()">Отклонить</button>
               } @else {
                 <button mat-flat-button class="error" (click)="session.finish()">Завершить</button>
