@@ -15,7 +15,6 @@ export class SipSessionsService {
 
   public sessions$ = new BehaviorSubject(new Map<string, SipSession>());
   public selectedSession$ = new BehaviorSubject<SipSession | null>(null);
-  public newestSession$ = new ReplaySubject<SipSession>();
 
   constructor() {
     // Удаляет из sessions$ завершенные сессии
@@ -90,7 +89,6 @@ export class SipSessionsService {
   private _addSession(session: SipSession) {
     const sessions = this.sessions$.value;
     sessions.set(session.id, session);
-    this.newestSession$.next(session);
     this.sessions$.next(sessions);
   }
 
