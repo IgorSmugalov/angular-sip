@@ -10,6 +10,7 @@ import {
   switchMap,
   take,
   takeUntil,
+  timer,
 } from 'rxjs';
 import { filter, tap } from 'rxjs/operators';
 
@@ -27,6 +28,8 @@ export class SipSession {
   public readonly isOnHold$ = new BehaviorSubject<boolean>(false);
   public readonly isMuted$ = new BehaviorSubject<boolean>(false);
   public readonly isPristine$ = new BehaviorSubject<boolean>(true);
+  public readonly hasIncomingTrack$ = new BehaviorSubject<boolean>(false);
+  public readonly hasOutgoingTrack$ = new BehaviorSubject<boolean>(false);
 
   private readonly _destroy$ = new Subject<string>();
   public readonly destroy$ = this._destroy$.asObservable();
@@ -91,12 +94,13 @@ export class SipSession {
 
     const sessionEnd$ = merge(ended$, failed$).pipe(takeUntil(this._destroy$));
 
-    sessionEnd$.subscribe((event) => {
+    sessionEnd$.subscribe(() => {
       this.destroy();
     });
 
     // Голосовая связь
     this._setupTrackHandling();
+    this._setupTrackHealthCheck();
   }
 
   private _setupTrackHandling(): void {
@@ -131,6 +135,33 @@ export class SipSession {
         takeUntil(this._destroy$),
       )
       .subscribe();
+  }
+
+  private _setupTrackHealthCheck(): void {
+    this.connection$
+      .pipe(
+        filter(Boolean),
+        switchMap((connection) =>
+          timer(0, 1000).pipe(
+            tap(() => {
+              const receivers = connection.getReceivers();
+              const hasIncoming = receivers.some((r) => this._isActiveAudioTrack(r.track));
+              this.hasIncomingTrack$.next(hasIncoming);
+
+              const senders = connection.getSenders();
+              const hasOutgoing = senders.some((s) => this._isActiveAudioTrack(s.track));
+              this.hasOutgoingTrack$.next(hasOutgoing);
+            }),
+            takeUntil(this._destroy$),
+          ),
+        ),
+        takeUntil(this._destroy$),
+      )
+      .subscribe();
+  }
+
+  private _isActiveAudioTrack(track: MediaStreamTrack | null): boolean {
+    return track?.kind === 'audio' && track.readyState !== 'ended';
   }
 
   // Методы управления
@@ -209,6 +240,8 @@ export class SipSession {
     this.isOnHold$.complete();
     this.isMuted$.complete();
     this.isPristine$.complete();
+    this.hasIncomingTrack$.complete();
+    this.hasOutgoingTrack$.complete();
     this.connection$.complete();
     this.remoteTrack$.next(null);
     this._destroy$.next(this.id);
