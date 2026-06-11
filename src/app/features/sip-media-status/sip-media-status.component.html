@@ -1,0 +1,21 @@
+@let activeSession = session();
+
+@if (activeSession) {
+  @let hasIncoming = activeSession.hasIncomingTrack$ | async;
+  @let hasOutgoing = activeSession.hasOutgoingTrack$ | async;
+
+  <div class="media-status">
+    <div class="media-status__item" [ngClass]="hasIncoming ? 'accent' : 'error'">
+      <mat-icon>{{ hasIncoming ? 'check' : 'close' }}</mat-icon>
+      <span>Входящий трек</span>
+    </div>
+    <div class="media-status__item" [ngClass]="hasOutgoing ? 'accent' : 'error'">
+      <mat-icon>{{ hasOutgoing ? 'check' : 'close' }}</mat-icon>
+      <span>Исходящий трек</span>
+    </div>
+  </div>
+} @else {
+  <div class="media-status media-status--empty">
+    Нет активной сессии
+  </div>
+}
